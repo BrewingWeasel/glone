@@ -21,7 +21,6 @@ type FileValues struct {
 }
 
 func DealWithDir(link string) error {
-	fmt.Println(link)
 	var wg sync.WaitGroup
 	var result DirStructure
 
@@ -35,7 +34,6 @@ func DealWithDir(link string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(string(body))
 
 	if err := json.Unmarshal(body, &result); err != nil {
 		return err
@@ -74,23 +72,20 @@ func GetContsFile(normalLink string, path string) string {
 }
 
 func DownloadIndividualFile(url string, fileName string) error {
-	fmt.Println("Visiting", url)
+	fmt.Println("\033[34mDownloading", url, "\033[m")
 	resp, err := http.Get(url)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
-	fmt.Println("Creating file for", url)
 	out, err := os.Create(fileName)
 	if err != nil {
-		fmt.Println("uh oh")
 		return err
 	}
 	defer out.Close()
 
-	fmt.Println("Writing to file", fileName)
 	_, err = io.Copy(out, resp.Body)
-	fmt.Println("Downloaded", url)
+	fmt.Println("\033[32mDownloaded", fileName, "\033[m")
 	return err
 }
