@@ -1,4 +1,4 @@
-package main
+package glone
 
 import (
 	"encoding/json"
@@ -18,15 +18,6 @@ type FileValues struct {
 	URL         string `json:"url"`
 	DownloadURL string `json:"download_url"`
 	Type        string `json:"type"`
-}
-
-func main() {
-	fileUrl := "https://github.com/BrewingWeasel/radish"
-	err := DealWithDir(GetContsFile(fileUrl))
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println("lol gg downloaded")
 }
 
 func DealWithDir(link string) error {
@@ -78,8 +69,8 @@ func DealWithDir(link string) error {
 	return nil
 }
 
-func GetContsFile(normalLink string) string {
-	return strings.Replace(normalLink, "https://github.com", "https://api.github.com/repos", 1) + "/contents"
+func GetContsFile(normalLink string, path string) string {
+	return strings.Replace(normalLink, "https://github.com", "https://api.github.com/repos", 1) + "/contents/" + path
 }
 
 func DownloadIndividualFile(url string, fileName string) error {
