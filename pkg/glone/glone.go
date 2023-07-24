@@ -21,22 +21,31 @@ type FileValues struct {
 	Type        string `json:"type"`
 }
 
-func DealWithDir(link string, outputPrefix string) error {
-	var wg sync.WaitGroup
+func getGitDir(link string) (DirStructure, error) {
 	var result DirStructure
 
 	resp, err := http.Get(link)
 	if err != nil {
-		return err
+		return result, err
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return result, err
 	}
 
 	if err := json.Unmarshal(body, &result); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+
+func DealWithDir(link string, outputPrefix string) error {
+	var wg sync.WaitGroup
+
+	result, err := getGitDir(link)
+	if err != nil {
 		return err
 	}
 
@@ -73,6 +82,10 @@ func GetContsFile(normalLink string, path string) string {
 }
 
 func DownloadIndividualFile(url string, fileName string) error {
+	err := os.MkdirAll(path.Dir(fileName), os.ModePerm)
+	if err != nil {
+		return err
+	}
 	fmt.Println("\033[34mDownloading", url, "\033[m")
 	resp, err := http.Get(url)
 	if err != nil {
@@ -89,4 +102,19 @@ func DownloadIndividualFile(url string, fileName string) error {
 	_, err = io.Copy(out, resp.Body)
 	fmt.Println("\033[32mDownloaded", fileName, "\033[m")
 	return err
+}
+
+func DownloadSpecificFiles(url string, filePaths []string, output string) error {
+	result, err := getGitDir(GetContsFile(url, ""))
+	if err != nil {
+		return err
+	}
+	branchName := strings.Split(result[0].URL, "?ref=")[1]
+	for _, f := range filePaths {
+		err := DownloadIndividualFile("https://raw.githubusercontent.com"+strings.TrimPrefix(url, "https://github.com")+"/"+branchName+"/"+f, path.Join(output, f))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
