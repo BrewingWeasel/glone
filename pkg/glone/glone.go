@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path"
 	"strings"
 	"sync"
 )
@@ -20,7 +21,7 @@ type FileValues struct {
 	Type        string `json:"type"`
 }
 
-func DealWithDir(link string) error {
+func DealWithDir(link string, outputPrefix string) error {
 	var wg sync.WaitGroup
 	var result DirStructure
 
@@ -44,10 +45,10 @@ func DealWithDir(link string) error {
 		if v.Type == "dir" {
 			go func(val FileValues) {
 				defer wg.Done()
-				if err := os.MkdirAll(val.Path, os.ModePerm); err != nil {
+				if err := os.MkdirAll(path.Join(outputPrefix, val.Path), os.ModePerm); err != nil {
 					panic(err)
 				}
-				err := DealWithDir(val.URL)
+				err := DealWithDir(val.URL, outputPrefix)
 				if err != nil {
 					panic(err)
 				}
@@ -56,7 +57,7 @@ func DealWithDir(link string) error {
 		} else {
 			go func(val FileValues) {
 				defer wg.Done()
-				err := DownloadIndividualFile(val.DownloadURL, val.Path)
+				err := DownloadIndividualFile(val.DownloadURL, path.Join(outputPrefix, val.Path))
 				if err != nil {
 					panic(err)
 				}
