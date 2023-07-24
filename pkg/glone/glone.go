@@ -25,6 +25,7 @@ type FileValues struct {
 
 type Config struct {
 	Filter       []string
+	Quiet        bool
 	OutputPrefix string
 }
 
@@ -74,7 +75,7 @@ func DealWithDir(link string, config Config) error {
 			wg.Add(1)
 			go func(val FileValues) {
 				defer wg.Done()
-				err := DownloadIndividualFile(val.DownloadURL, path.Join(config.OutputPrefix, val.Path))
+				err := DownloadIndividualFile(val.DownloadURL, path.Join(config.OutputPrefix, val.Path), config.Quiet)
 				if err != nil {
 					panic(err)
 				}
@@ -89,12 +90,14 @@ func GetContsFile(normalLink string, path string) string {
 	return strings.Replace(normalLink, "https://github.com", "https://api.github.com/repos", 1) + "/contents/" + path
 }
 
-func DownloadIndividualFile(url string, fileName string) error {
+func DownloadIndividualFile(url string, fileName string, quiet bool) error {
 	err := os.MkdirAll(path.Dir(fileName), os.ModePerm)
 	if err != nil {
 		return err
 	}
-	fmt.Println("\033[34mDownloading", url, "\033[m")
+	if !quiet {
+		fmt.Println("\033[34mDownloading", url, "\033[m")
+	}
 	resp, err := http.Get(url)
 	if err != nil {
 		return err
@@ -108,18 +111,20 @@ func DownloadIndividualFile(url string, fileName string) error {
 	defer out.Close()
 
 	_, err = io.Copy(out, resp.Body)
-	fmt.Println("\033[32mDownloaded", fileName, "\033[m")
+	if !quiet {
+		fmt.Println("\033[32mDownloaded", fileName, "\033[m")
+	}
 	return err
 }
 
-func DownloadSpecificFiles(url string, filePaths []string, output string) error {
+func DownloadSpecificFiles(url string, filePaths []string, config Config) error {
 	result, err := getGitDir(GetContsFile(url, ""))
 	if err != nil {
 		return err
 	}
 	branchName := strings.Split(result[0].URL, "?ref=")[1]
 	for _, f := range filePaths {
-		err := DownloadIndividualFile("https://raw.githubusercontent.com"+strings.TrimPrefix(url, "https://github.com")+"/"+branchName+"/"+f, path.Join(output, f))
+		err := DownloadIndividualFile("https://raw.githubusercontent.com"+strings.TrimPrefix(url, "https://github.com")+"/"+branchName+"/"+f, path.Join(config.OutputPrefix, f), config.Quiet)
 		if err != nil {
 			return err
 		}

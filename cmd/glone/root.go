@@ -11,6 +11,7 @@ import (
 
 var specificFiles []string
 var filteredVals []string
+var quiet bool
 var rootCmd = &cobra.Command{
 	Use:   "glone url (path in repository) (output path)",
 	Short: "Glone is an alternative to git clone that allows downloading specific directories",
@@ -37,8 +38,10 @@ var rootCmd = &cobra.Command{
 			outputDir = urlParts[len(urlParts)-1]
 		}
 
+		config := glone.Config{OutputPrefix: outputDir, Filter: filteredVals, Quiet: quiet}
+
 		if len(specificFiles) != 0 {
-			err := glone.DownloadSpecificFiles(fileUrl, specificFiles, outputDir)
+			err := glone.DownloadSpecificFiles(fileUrl, specificFiles, config)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error running glone: '%s'", err)
 				os.Exit(1)
@@ -46,7 +49,7 @@ var rootCmd = &cobra.Command{
 			os.Exit(0)
 		}
 
-		err := glone.DealWithDir(glone.GetContsFile(fileUrl, path), glone.Config{OutputPrefix: outputDir, Filter: filteredVals})
+		err := glone.DealWithDir(glone.GetContsFile(fileUrl, path), config)
 		if err != nil {
 			panic(err)
 		}
@@ -56,6 +59,7 @@ var rootCmd = &cobra.Command{
 func init() {
 	rootCmd.Flags().StringArrayVarP(&specificFiles, "file", "f", []string{}, "Download a specific file or files.")
 	rootCmd.Flags().StringArrayVarP(&filteredVals, "ignore", "i", []string{}, "Download specific file(s). If using multiple files, seperate them with semicolons")
+	rootCmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "Do not output any info while downloading")
 }
 
 func Execute() {
