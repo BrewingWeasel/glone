@@ -10,6 +10,8 @@ import (
 	"path"
 	"strings"
 	"sync"
+
+	"golang.org/x/exp/slices"
 )
 
 type DirStructure []FileValues
@@ -19,6 +21,11 @@ type FileValues struct {
 	URL         string `json:"url"`
 	DownloadURL string `json:"download_url"`
 	Type        string `json:"type"`
+}
+
+type Config struct {
+	Filter       []string
+	OutputPrefix string
 }
 
 func getGitDir(link string) (DirStructure, error) {
@@ -41,7 +48,7 @@ func getGitDir(link string) (DirStructure, error) {
 	return result, nil
 }
 
-func DealWithDir(link string, outputPrefix string) error {
+func DealWithDir(link string, config Config) error {
 	var wg sync.WaitGroup
 
 	result, err := getGitDir(link)
@@ -50,23 +57,24 @@ func DealWithDir(link string, outputPrefix string) error {
 	}
 
 	for _, v := range result {
-		wg.Add(1)
-		if v.Type == "dir" {
+		if v.Type == "dir" && !slices.Contains(config.Filter, v.Path) {
+			wg.Add(1)
 			go func(val FileValues) {
 				defer wg.Done()
-				if err := os.MkdirAll(path.Join(outputPrefix, val.Path), os.ModePerm); err != nil {
+				if err := os.MkdirAll(path.Join(config.OutputPrefix, val.Path), os.ModePerm); err != nil {
 					panic(err)
 				}
-				err := DealWithDir(val.URL, outputPrefix)
+				err := DealWithDir(val.URL, config)
 				if err != nil {
 					panic(err)
 				}
 
 			}(v)
-		} else {
+		} else if !slices.Contains(config.Filter, v.Path) {
+			wg.Add(1)
 			go func(val FileValues) {
 				defer wg.Done()
-				err := DownloadIndividualFile(val.DownloadURL, path.Join(outputPrefix, val.Path))
+				err := DownloadIndividualFile(val.DownloadURL, path.Join(config.OutputPrefix, val.Path))
 				if err != nil {
 					panic(err)
 				}

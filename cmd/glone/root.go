@@ -9,7 +9,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var specificFile string
+var specificFiles []string
+var filteredVals []string
 var rootCmd = &cobra.Command{
 	Use:   "glone url (path in repository) (output path)",
 	Short: "Glone is an alternative to git clone that allows downloading specific directories",
@@ -36,8 +37,8 @@ var rootCmd = &cobra.Command{
 			outputDir = urlParts[len(urlParts)-1]
 		}
 
-		if specificFile != "" {
-			err := glone.DownloadSpecificFiles(fileUrl, strings.Split(specificFile, ";"), outputDir)
+		if len(specificFiles) != 0 {
+			err := glone.DownloadSpecificFiles(fileUrl, specificFiles, outputDir)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error running glone: '%s'", err)
 				os.Exit(1)
@@ -45,7 +46,7 @@ var rootCmd = &cobra.Command{
 			os.Exit(0)
 		}
 
-		err := glone.DealWithDir(glone.GetContsFile(fileUrl, path), outputDir)
+		err := glone.DealWithDir(glone.GetContsFile(fileUrl, path), glone.Config{OutputPrefix: outputDir, Filter: filteredVals})
 		if err != nil {
 			panic(err)
 		}
@@ -53,7 +54,8 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.Flags().StringVarP(&specificFile, "file", "f", "", "Download specific file(s). If using multiple files, seperate them with semicolons")
+	rootCmd.Flags().StringArrayVarP(&specificFiles, "file", "f", []string{}, "Download a specific file or files.")
+	rootCmd.Flags().StringArrayVarP(&filteredVals, "ignore", "i", []string{}, "Download specific file(s). If using multiple files, seperate them with semicolons")
 }
 
 func Execute() {
