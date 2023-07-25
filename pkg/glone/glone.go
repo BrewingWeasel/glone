@@ -133,7 +133,12 @@ FILES:
 }
 
 func GetContsFile(normalLink string, path string) string {
-	return strings.Replace(normalLink, "https://github.com", "https://api.github.com/repos", 1) + "/contents/" + path
+	if strings.HasPrefix(normalLink, "https://github.com") {
+		return strings.Replace(normalLink, "https://github.com", "https://api.github.com/repos", 1) + "/contents/" + path
+	} else {
+		return "https://api.github.com/repos/" + normalLink + "/contents/" + path
+	}
+
 }
 
 func DownloadIndividualFile(url string, fileName string, quiet bool) error {

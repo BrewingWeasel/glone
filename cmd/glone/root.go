@@ -15,8 +15,8 @@ var avoidedFiles []string
 var quiet bool
 var branch string
 var rootCmd = &cobra.Command{
-	Use:   "glone url (path in repository) (output path)",
-	Short: "Glone is an alternative to git clone that allows downloading specific directories",
+	Use:   "glone <url (if using github, you can only include the user and the repository)> <path in repository> <output path>",
+	Short: "Glone is git clone without the git. It allows downloading specific directories as well as a list of files to not download.",
 	Args:  cobra.MaximumNArgs(3),
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
