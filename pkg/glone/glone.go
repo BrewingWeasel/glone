@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -27,12 +28,23 @@ type Config struct {
 	Filter       []string
 	Quiet        bool
 	OutputPrefix string
+	Avoid        []string
 }
 
 func getGitDir(link string) (DirStructure, error) {
 	var result DirStructure
 
-	resp, err := http.Get(link)
+	req, err := http.NewRequest("GET", link, nil)
+	if err != nil {
+		return result, err
+	}
+
+	// token := os.Getenv("GLONE_GITHUB_TOKEN")
+	// if token != "" {
+	// 	req.Header.Set("Authorization", token)
+	// }
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return result, err
 	}
@@ -44,7 +56,9 @@ func getGitDir(link string) (DirStructure, error) {
 	}
 
 	if err := json.Unmarshal(body, &result); err != nil {
-		return result, err
+		fmt.Println("Error unmarshalling JSON. This is most likely due to hitting a rate limit.")
+		fmt.Println("To combat this you can make a token and set it as your environment variable $GLONE_GITHUB_TOKEN")
+		os.Exit(1)
 	}
 	return result, nil
 }
@@ -57,9 +71,24 @@ func DealWithDir(link string, config Config) error {
 		return err
 	}
 
+FILES:
 	for _, v := range result {
-		if v.Type == "dir" && !slices.Contains(config.Filter, v.Path) {
-			wg.Add(1)
+
+		if slices.Contains(config.Avoid, v.Path) {
+			continue
+		}
+
+		byteStr := []byte(v.Path)
+		for _, filter := range config.Filter {
+			if matches, _ := regexp.Match(filter, byteStr); matches {
+				if !config.Quiet {
+					fmt.Println("Skipping", v.Path)
+				}
+				continue FILES
+			}
+		}
+		wg.Add(1)
+		if v.Type == "dir" {
 			go func(val FileValues) {
 				defer wg.Done()
 				if err := os.MkdirAll(path.Join(config.OutputPrefix, val.Path), os.ModePerm); err != nil {
@@ -71,8 +100,7 @@ func DealWithDir(link string, config Config) error {
 				}
 
 			}(v)
-		} else if !slices.Contains(config.Filter, v.Path) {
-			wg.Add(1)
+		} else {
 			go func(val FileValues) {
 				defer wg.Done()
 				err := DownloadIndividualFile(val.DownloadURL, path.Join(config.OutputPrefix, val.Path), config.Quiet)

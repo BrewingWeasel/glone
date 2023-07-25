@@ -11,6 +11,7 @@ import (
 
 var specificFiles []string
 var filteredVals []string
+var avoidedFiles []string
 var quiet bool
 var rootCmd = &cobra.Command{
 	Use:   "glone url (path in repository) (output path)",
@@ -38,7 +39,7 @@ var rootCmd = &cobra.Command{
 			outputDir = urlParts[len(urlParts)-1]
 		}
 
-		config := glone.Config{OutputPrefix: outputDir, Filter: filteredVals, Quiet: quiet}
+		config := glone.Config{OutputPrefix: outputDir, Filter: filteredVals, Avoid: avoidedFiles, Quiet: quiet}
 
 		if len(specificFiles) != 0 {
 			err := glone.DownloadSpecificFiles(fileUrl, specificFiles, config)
@@ -58,7 +59,8 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.Flags().StringArrayVarP(&specificFiles, "file", "f", []string{}, "Download a specific file or files.")
-	rootCmd.Flags().StringArrayVarP(&filteredVals, "ignore", "i", []string{}, "Download specific file(s). If using multiple files, seperate them with semicolons")
+	rootCmd.Flags().StringArrayVarP(&avoidedFiles, "avoid", "a", []string{}, "Ignore specific file(s) or directory(s) and do not download them")
+	rootCmd.Flags().StringArrayVarP(&filteredVals, "filter", "F", []string{}, "Ignore and do not download any files that match these regex patterns")
 	rootCmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "Do not output any info while downloading")
 }
 
