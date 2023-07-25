@@ -141,7 +141,7 @@ func skipFile(path string, config Config) bool {
 	for _, filter := range config.Filter {
 		if matches, _ := regexp.Match(filter, byteStr); matches {
 			if !config.Quiet {
-				fmt.Println("Skipping", path)
+				fmt.Println("\033[31mRegex matched, skipping: ", path, "\033[m")
 			}
 			return true
 		}
@@ -235,8 +235,10 @@ func DownloadTarball(url string, config Config) error {
 
 		name := replaceDirName(hdr.Name)
 
-		if skipFile(strings.TrimPrefix(name, config.OutputPrefix), config) {
-			fmt.Println("skipped: ", name)
+		if skipFile(strings.TrimPrefix(name, config.OutputPrefix+"/"), config) {
+			if !config.Quiet {
+				fmt.Println("skipped: ", name)
+			}
 			continue
 		}
 
