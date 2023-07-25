@@ -1,6 +1,8 @@
 package glone
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -89,22 +91,12 @@ func DealWithDir(link string, getResult func(string) (DirStructure, error), conf
 		return err
 	}
 
-FILES:
 	for _, v := range result {
 
-		if slices.Contains(config.Avoid, v.Path) {
+		if skipFile(v.Path, config) {
 			continue
 		}
 
-		byteStr := []byte(v.Path)
-		for _, filter := range config.Filter {
-			if matches, _ := regexp.Match(filter, byteStr); matches {
-				if !config.Quiet {
-					fmt.Println("Skipping", v.Path)
-				}
-				continue FILES
-			}
-		}
 		wg.Add(1)
 		if v.Type == "dir" {
 			go func(val FileValues) {
@@ -138,7 +130,23 @@ func GetContsFile(normalLink string, path string) string {
 	} else {
 		return "https://api.github.com/repos/" + normalLink + "/contents/" + path
 	}
+}
 
+func skipFile(path string, config Config) bool {
+	if slices.Contains(config.Avoid, path) {
+		return true
+	}
+
+	byteStr := []byte(path)
+	for _, filter := range config.Filter {
+		if matches, _ := regexp.Match(filter, byteStr); matches {
+			if !config.Quiet {
+				fmt.Println("Skipping", path)
+			}
+			return true
+		}
+	}
+	return false
 }
 
 func DownloadIndividualFile(url string, fileName string, quiet bool) error {
@@ -178,6 +186,76 @@ func DownloadSpecificFiles(url string, filePaths []string, config Config) error 
 		err := DownloadIndividualFile("https://raw.githubusercontent.com"+strings.TrimPrefix(url, "https://github.com")+"/"+branchName+"/"+f, path.Join(config.OutputPrefix, f), config.Quiet)
 		if err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func DownloadTarball(url string, config Config) error {
+	downloadUrl := url + "/tarball/master"
+
+	resp, err := http.Get(downloadUrl)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if !config.Quiet {
+		fmt.Println("\033[32mDownloaded tarball from ", downloadUrl, "\033[m")
+	}
+
+	uncompressedStream, err := gzip.NewReader(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	tr := tar.NewReader(uncompressedStream)
+
+	// Ignore the "pax_global_header" file
+	tr.Next()
+	// By default the directory name is not the name of the repository
+	dirName, err := tr.Next()
+	err = os.Mkdir(config.OutputPrefix, os.ModePerm)
+	if err != nil {
+		return err
+	}
+
+	replaceDirName := func(orig string) string {
+		return strings.Replace(orig, dirName.Name, config.OutputPrefix+"/", 1)
+	}
+
+	for {
+		hdr, err := tr.Next()
+
+		if err == io.EOF {
+			break // End of archive
+		} else if err != nil {
+			return err
+		}
+
+		name := replaceDirName(hdr.Name)
+
+		if skipFile(strings.TrimPrefix(name, config.OutputPrefix), config) {
+			fmt.Println("skipped: ", name)
+			continue
+		}
+
+		if hdr.Typeflag == tar.TypeDir {
+			os.Mkdir(replaceDirName(name), os.ModePerm)
+		} else {
+			out, err := os.Create(name)
+			if err != nil {
+				fmt.Println("darn")
+				return err
+			}
+			defer out.Close()
+
+			if !config.Quiet {
+				fmt.Println("Extracted " + name)
+			}
+			if _, err = io.Copy(out, tr); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

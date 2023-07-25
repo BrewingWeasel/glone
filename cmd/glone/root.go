@@ -2,6 +2,7 @@ package glone
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
@@ -13,6 +14,7 @@ var specificFiles []string
 var filteredVals []string
 var avoidedFiles []string
 var quiet bool
+var tar bool
 var branch string
 var rootCmd = &cobra.Command{
 	Use:   "glone <url (if using github, you can only include the user and the repository)> <path in repository> <output path>",
@@ -45,10 +47,16 @@ var rootCmd = &cobra.Command{
 		if len(specificFiles) != 0 {
 			err := glone.DownloadSpecificFiles(fileUrl, specificFiles, config)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error running glone: '%s'", err)
-				os.Exit(1)
+				log.Fatal(err)
 			}
 			os.Exit(0)
+		} else if tar {
+			err := glone.DownloadTarball(fileUrl, config)
+			if err != nil {
+				log.Fatal(err)
+			} else {
+				os.Exit(0)
+			}
 		}
 
 		err := glone.DealWithDir(glone.GetContsFile(fileUrl, path), glone.GetGitDir, config)
@@ -63,6 +71,7 @@ func init() {
 	rootCmd.Flags().StringArrayVarP(&avoidedFiles, "avoid", "a", []string{}, "Ignore specific file(s) or directory(s) and do not download them")
 	rootCmd.Flags().StringArrayVarP(&filteredVals, "filter", "F", []string{}, "Ignore and do not download any files that match these regex patterns")
 	rootCmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "Do not output any info while downloading")
+	rootCmd.Flags().BoolVarP(&tar, "tar", "t", false, "Download the tar.gz file and do processing while extracting instead of visiting each page")
 	rootCmd.Flags().StringVarP(&branch, "branch", "b", "", "Specific branch to download")
 }
 
