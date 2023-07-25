@@ -13,6 +13,7 @@ var specificFiles []string
 var filteredVals []string
 var avoidedFiles []string
 var quiet bool
+var branch string
 var rootCmd = &cobra.Command{
 	Use:   "glone url (path in repository) (output path)",
 	Short: "Glone is an alternative to git clone that allows downloading specific directories",
@@ -39,7 +40,7 @@ var rootCmd = &cobra.Command{
 			outputDir = urlParts[len(urlParts)-1]
 		}
 
-		config := glone.Config{OutputPrefix: outputDir, Filter: filteredVals, Avoid: avoidedFiles, Quiet: quiet}
+		config := glone.Config{OutputPrefix: outputDir, Filter: filteredVals, Avoid: avoidedFiles, Quiet: quiet, Branch: branch}
 
 		if len(specificFiles) != 0 {
 			err := glone.DownloadSpecificFiles(fileUrl, specificFiles, config)
@@ -50,7 +51,7 @@ var rootCmd = &cobra.Command{
 			os.Exit(0)
 		}
 
-		err := glone.DealWithDir(glone.GetContsFile(fileUrl, path), config)
+		err := glone.DealWithDir(glone.GetContsFile(fileUrl, path), glone.GetGitDir, config)
 		if err != nil {
 			panic(err)
 		}
@@ -62,6 +63,7 @@ func init() {
 	rootCmd.Flags().StringArrayVarP(&avoidedFiles, "avoid", "a", []string{}, "Ignore specific file(s) or directory(s) and do not download them")
 	rootCmd.Flags().StringArrayVarP(&filteredVals, "filter", "F", []string{}, "Ignore and do not download any files that match these regex patterns")
 	rootCmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "Do not output any info while downloading")
+	rootCmd.Flags().StringVarP(&branch, "branch", "b", "", "Specific branch to download")
 }
 
 func Execute() {

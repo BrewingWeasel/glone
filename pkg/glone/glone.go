@@ -29,44 +29,62 @@ type Config struct {
 	Quiet        bool
 	OutputPrefix string
 	Avoid        []string
+	Branch       string
 }
 
-func getGitDir(link string) (DirStructure, error) {
-	var result DirStructure
-
+func getResponse(link string) ([]byte, error) {
+	var body []byte
 	req, err := http.NewRequest("GET", link, nil)
 	if err != nil {
-		return result, err
+		return body, err
 	}
 
-	// token := os.Getenv("GLONE_GITHUB_TOKEN")
-	// if token != "" {
-	// 	req.Header.Set("Authorization", token)
-	// }
+	token := os.Getenv("GLONE_GITHUB_TOKEN")
+	if token != "" {
+		req.Header.Set("Authorization", "token "+token)
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return result, err
+		return body, err
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err = ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return body, err
+	}
+	return body, err
+
+}
+
+func GetGitDir(link string) (DirStructure, error) {
+	var result DirStructure
+
+	body, err := getResponse(link)
 	if err != nil {
 		return result, err
 	}
 
 	if err := json.Unmarshal(body, &result); err != nil {
-		fmt.Println("Error unmarshalling JSON. This is most likely due to hitting a rate limit.")
-		fmt.Println("To combat this you can make a token and set it as your environment variable $GLONE_GITHUB_TOKEN")
+		fmt.Println("Error unmarshalling JSON. This could be due to hitting a rate limit.")
 		os.Exit(1)
 	}
 	return result, nil
 }
 
-func DealWithDir(link string, config Config) error {
+func DealWithDir(link string, getResult func(string) (DirStructure, error), config Config) error {
 	var wg sync.WaitGroup
 
-	result, err := getGitDir(link)
+	handleUrl := func(url string) string {
+		if config.Branch == "" {
+			return url
+		} else {
+			return strings.Split(url, "?ref=")[0] + "?ref=" + config.Branch
+		}
+	}
+
+	result, err := getResult(handleUrl(link))
 	if err != nil {
 		return err
 	}
@@ -94,7 +112,7 @@ FILES:
 				if err := os.MkdirAll(path.Join(config.OutputPrefix, val.Path), os.ModePerm); err != nil {
 					panic(err)
 				}
-				err := DealWithDir(val.URL, config)
+				err := DealWithDir(handleUrl(val.URL), getResult, config)
 				if err != nil {
 					panic(err)
 				}
@@ -146,7 +164,7 @@ func DownloadIndividualFile(url string, fileName string, quiet bool) error {
 }
 
 func DownloadSpecificFiles(url string, filePaths []string, config Config) error {
-	result, err := getGitDir(GetContsFile(url, ""))
+	result, err := GetGitDir(GetContsFile(url, ""))
 	if err != nil {
 		return err
 	}
