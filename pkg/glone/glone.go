@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"path"
@@ -69,8 +70,7 @@ func GetGitDir(link string) (DirStructure, error) {
 	}
 
 	if err := json.Unmarshal(body, &result); err != nil {
-		fmt.Println("Error unmarshalling JSON. This could be due to hitting a rate limit.")
-		os.Exit(1)
+		log.Fatal("Error unmarshalling JSON. This could be due to hitting a rate limit. Create a github token and assign $GLONE_GITHUB_TOKEN to it in order to get more api calls")
 	}
 	return result, nil
 }
@@ -124,12 +124,16 @@ func DealWithDir(link string, getResult func(string) (DirStructure, error), conf
 	return nil
 }
 
-func GetContsFile(normalLink string, path string) string {
-	if strings.HasPrefix(normalLink, "https://github.com") {
-		return strings.Replace(normalLink, "https://github.com", "https://api.github.com/repos", 1) + "/contents/" + path
+func NormalizeLink(origLink string) string {
+	if strings.HasPrefix(origLink, "https://github.com") {
+		return strings.Trim(origLink, "/")
 	} else {
-		return "https://api.github.com/repos/" + normalLink + "/contents/" + path
+		return "https://github.com/" + strings.Trim(origLink, "/")
 	}
+}
+
+func GetContsFile(normalLink string, path string) string {
+	return strings.Replace(normalLink, "https://github.com", "https://api.github.com/repos", 1) + "/contents/" + path
 }
 
 func skipFile(path string, config Config) bool {
@@ -191,8 +195,38 @@ func DownloadSpecificFiles(url string, filePaths []string, config Config) error 
 	return nil
 }
 
+func getBranch(url string) (string, error) {
+	type RepoInfo struct {
+		DefaultBranch string `json:"default_branch"`
+	}
+	var result RepoInfo
+
+	apiUrl := strings.Replace(url, "https://github.com", "https://api.github.com/repos", 1)
+	response, err := getResponse(apiUrl)
+	if err != nil {
+		return "", err
+	}
+
+	if err := json.Unmarshal(response, &result); err != nil {
+		return "", err
+	}
+	return result.DefaultBranch, nil
+
+}
+
 func DownloadTarball(url string, config Config) error {
-	downloadUrl := url + "/tarball/master"
+
+	var downloadUrl string
+
+	if config.Branch == "" {
+		branch, err := getBranch(url)
+		if err != nil {
+			return err
+		}
+		downloadUrl = url + "/tarball/" + branch
+	} else {
+		downloadUrl = url + "/tarball/" + config.Branch
+	}
 
 	resp, err := http.Get(downloadUrl)
 	if err != nil {

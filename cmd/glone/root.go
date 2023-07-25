@@ -26,7 +26,7 @@ var rootCmd = &cobra.Command{
 			os.Exit(0)
 		}
 
-		fileUrl := args[0]
+		fileUrl := glone.NormalizeLink(args[0])
 		var path string
 		var outputDir string
 
