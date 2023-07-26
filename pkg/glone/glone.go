@@ -33,6 +33,7 @@ type Config struct {
 	OutputPrefix string
 	Avoid        []string
 	Branch       string
+	Path         string
 }
 
 func getResponse(link string) ([]byte, error) {
@@ -214,6 +215,12 @@ func getBranch(url string) (string, error) {
 
 }
 
+func isPathShared(path1 string, path2 string) (bool, string) {
+	first := strings.Split(path1, string(os.PathSeparator))[0]
+	second := strings.Split(path2, string(os.PathSeparator))[0]
+	return first == second, first
+}
+
 func DownloadTarball(url string, config Config) error {
 
 	var downloadUrl string
@@ -258,6 +265,8 @@ func DownloadTarball(url string, config Config) error {
 		return strings.Replace(orig, dirName.Name, config.OutputPrefix+"/", 1)
 	}
 
+	remainingPath := config.Path
+
 	for {
 		hdr, err := tr.Next()
 
@@ -268,6 +277,15 @@ func DownloadTarball(url string, config Config) error {
 		}
 
 		name := replaceDirName(hdr.Name)
+
+		if remainingPath != "" {
+			matched, dir := isPathShared(strings.TrimPrefix(hdr.Name, dirName.Name), remainingPath)
+			if matched {
+				remainingPath = strings.TrimPrefix(remainingPath, dir+"/")
+			} else {
+				continue
+			}
+		}
 
 		if skipFile(strings.TrimPrefix(name, config.OutputPrefix+"/"), config) {
 			if !config.Quiet {
