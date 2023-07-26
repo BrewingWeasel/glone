@@ -30,6 +30,7 @@ type FileValues struct {
 type Config struct {
 	Filter       []string
 	Quiet        bool
+	ExcludePath  bool
 	OutputPrefix string
 	Avoid        []string
 	Branch       string
@@ -76,6 +77,14 @@ func GetGitDir(link string) (DirStructure, error) {
 	return result, nil
 }
 
+func parsePath(path string, config Config) string {
+	if config.ExcludePath {
+		return strings.TrimPrefix(path, config.Path)
+	} else {
+		return path
+	}
+}
+
 func DealWithDir(link string, getResult func(string) (DirStructure, error), config Config) error {
 	var wg sync.WaitGroup
 
@@ -102,7 +111,7 @@ func DealWithDir(link string, getResult func(string) (DirStructure, error), conf
 		if v.Type == "dir" {
 			go func(val FileValues) {
 				defer wg.Done()
-				if err := os.MkdirAll(path.Join(config.OutputPrefix, val.Path), os.ModePerm); err != nil {
+				if err := os.MkdirAll(path.Join(config.OutputPrefix, parsePath(val.Path, config)), os.ModePerm); err != nil {
 					panic(err)
 				}
 				err := DealWithDir(handleUrl(val.URL), getResult, config)
@@ -114,7 +123,7 @@ func DealWithDir(link string, getResult func(string) (DirStructure, error), conf
 		} else {
 			go func(val FileValues) {
 				defer wg.Done()
-				err := DownloadIndividualFile(val.DownloadURL, path.Join(config.OutputPrefix, val.Path), config.Quiet)
+				err := DownloadIndividualFile(val.DownloadURL, path.Join(config.OutputPrefix, parsePath(val.Path, config)), config.Quiet)
 				if err != nil {
 					panic(err)
 				}
