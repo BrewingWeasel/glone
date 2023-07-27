@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -17,6 +16,14 @@ import (
 
 	"golang.org/x/exp/slices"
 )
+
+type gitHostingService interface {
+	GetResponse(link string) ([]byte, error)
+	HandleBranchUrl(url string, branch string) string
+	GetContsFile(normalLink string, path string) string
+	GetBranch(url string) (string, error)
+	GetDownloadFromPath(url string, branch string, path string) string
+}
 
 type DirStructure []FileValues
 
@@ -35,38 +42,13 @@ type Config struct {
 	Avoid        []string
 	Branch       string
 	Path         string
+	GitHoster    gitHostingService
 }
 
-func getResponse(link string) ([]byte, error) {
-	var body []byte
-	req, err := http.NewRequest("GET", link, nil)
-	if err != nil {
-		return body, err
-	}
-
-	token := os.Getenv("GLONE_GITHUB_TOKEN")
-	if token != "" {
-		req.Header.Set("Authorization", "token "+token)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return body, err
-	}
-	defer resp.Body.Close()
-
-	body, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return body, err
-	}
-	return body, err
-
-}
-
-func GetGitDir(link string) (DirStructure, error) {
+func GetGitDir(link string, gitHoster gitHostingService) (DirStructure, error) {
 	var result DirStructure
 
-	body, err := getResponse(link)
+	body, err := gitHoster.GetResponse(link)
 	if err != nil {
 		return result, err
 	}
@@ -85,9 +67,10 @@ func parsePath(path string, config Config) string {
 	}
 }
 
-func DealWithDir(link string, getResult func(string) (DirStructure, error), config Config) error {
+func DealWithDir(link string, getResult func(string, gitHostingService) (DirStructure, error), config Config) error {
 	var wg sync.WaitGroup
 
+	// TODO: adapt
 	handleUrl := func(url string) string {
 		if config.Branch == "" {
 			return url
@@ -96,7 +79,7 @@ func DealWithDir(link string, getResult func(string) (DirStructure, error), conf
 		}
 	}
 
-	result, err := getResult(handleUrl(link))
+	result, err := getResult(handleUrl(link), config.GitHoster)
 	if err != nil {
 		return err
 	}
@@ -114,6 +97,7 @@ func DealWithDir(link string, getResult func(string) (DirStructure, error), conf
 				if err := os.MkdirAll(path.Join(config.OutputPrefix, parsePath(val.Path, config)), os.ModePerm); err != nil {
 					panic(err)
 				}
+				// TODO: adapt
 				err := DealWithDir(handleUrl(val.URL), getResult, config)
 				if err != nil {
 					panic(err)
@@ -123,6 +107,7 @@ func DealWithDir(link string, getResult func(string) (DirStructure, error), conf
 		} else {
 			go func(val FileValues) {
 				defer wg.Done()
+				// TODO: adapt (or just make download url when converting)
 				err := DownloadIndividualFile(val.DownloadURL, path.Join(config.OutputPrefix, parsePath(val.Path, config)), config.Quiet)
 				if err != nil {
 					panic(err)
@@ -135,15 +120,11 @@ func DealWithDir(link string, getResult func(string) (DirStructure, error), conf
 }
 
 func NormalizeLink(origLink string) string {
-	if strings.HasPrefix(origLink, "https://github.com") {
+	if strings.HasPrefix(origLink, "https://github.com") || !strings.Contains(origLink, "github.com") {
 		return strings.Trim(origLink, "/")
 	} else {
 		return "https://github.com/" + strings.Trim(origLink, "/")
 	}
-}
-
-func GetContsFile(normalLink string, path string) string {
-	return strings.Replace(normalLink, "https://github.com", "https://api.github.com/repos", 1) + "/contents/" + path
 }
 
 func skipFile(path string, config Config) bool {
@@ -191,37 +172,23 @@ func DownloadIndividualFile(url string, fileName string, quiet bool) error {
 }
 
 func DownloadSpecificFiles(url string, filePaths []string, config Config) error {
-	result, err := GetGitDir(GetContsFile(url, ""))
-	if err != nil {
-		return err
+	var branchName string
+	var err error
+	if config.Branch == "" {
+		branchName, err = config.GitHoster.GetBranch(url)
+		if err != nil {
+			return err
+		}
+	} else {
+		branchName = config.Branch
 	}
-	branchName := strings.Split(result[0].URL, "?ref=")[1]
 	for _, f := range filePaths {
-		err := DownloadIndividualFile("https://raw.githubusercontent.com"+strings.TrimPrefix(url, "https://github.com")+"/"+branchName+"/"+f, path.Join(config.OutputPrefix, f), config.Quiet)
+		err := DownloadIndividualFile(config.GitHoster.GetDownloadFromPath(url, branchName, f), path.Join(config.OutputPrefix, f), config.Quiet)
 		if err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-func getBranch(url string) (string, error) {
-	type RepoInfo struct {
-		DefaultBranch string `json:"default_branch"`
-	}
-	var result RepoInfo
-
-	apiUrl := strings.Replace(url, "https://github.com", "https://api.github.com/repos", 1)
-	response, err := getResponse(apiUrl)
-	if err != nil {
-		return "", err
-	}
-
-	if err := json.Unmarshal(response, &result); err != nil {
-		return "", err
-	}
-	return result.DefaultBranch, nil
-
 }
 
 func isPathShared(path1 string, path2 string) (bool, string) {
@@ -235,10 +202,11 @@ func DownloadTarball(url string, config Config) error {
 	var downloadUrl string
 
 	if config.Branch == "" {
-		branch, err := getBranch(url)
+		branch, err := config.GitHoster.GetBranch(url)
 		if err != nil {
 			return err
 		}
+		// TODO: adapt
 		downloadUrl = url + "/tarball/" + branch
 	} else {
 		downloadUrl = url + "/tarball/" + config.Branch

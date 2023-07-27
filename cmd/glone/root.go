@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/brewingweasel/glone/pkg/github"
 	"github.com/brewingweasel/glone/pkg/glone"
 	"github.com/spf13/cobra"
 )
@@ -43,7 +44,7 @@ var rootCmd = &cobra.Command{
 			outputDir = urlParts[len(urlParts)-1]
 		}
 
-		config := glone.Config{OutputPrefix: outputDir, Filter: filteredVals, Avoid: avoidedFiles, Quiet: quiet, Branch: branch, Path: path, ExcludePath: excludePath}
+		config := glone.Config{OutputPrefix: outputDir, Filter: filteredVals, Avoid: avoidedFiles, Quiet: quiet, Branch: branch, Path: path, ExcludePath: excludePath, GitHoster: github.GithubFuncs{}}
 
 		if len(specificFiles) != 0 {
 			err := glone.DownloadSpecificFiles(fileUrl, specificFiles, config)
@@ -60,7 +61,7 @@ var rootCmd = &cobra.Command{
 			}
 		}
 
-		err := glone.DealWithDir(glone.GetContsFile(fileUrl, path), glone.GetGitDir, config)
+		err := glone.DealWithDir(config.GitHoster.GetContsFile(fileUrl, path), glone.GetGitDir, config)
 		if err != nil {
 			panic(err)
 		}
