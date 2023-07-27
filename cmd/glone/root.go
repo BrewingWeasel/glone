@@ -2,11 +2,9 @@ package glone
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"strings"
 
-	"github.com/brewingweasel/glone/pkg/github"
 	"github.com/brewingweasel/glone/pkg/glone"
 	"github.com/spf13/cobra"
 )
@@ -44,27 +42,9 @@ var rootCmd = &cobra.Command{
 			outputDir = urlParts[len(urlParts)-1]
 		}
 
-		config := glone.Config{OutputPrefix: outputDir, Filter: filteredVals, Avoid: avoidedFiles, Quiet: quiet, Branch: branch, Path: path, ExcludePath: excludePath, GitHoster: github.GithubFuncs{}}
+		config := glone.Config{OutputPrefix: outputDir, Filter: filteredVals, Avoid: avoidedFiles, Quiet: quiet, Branch: branch, Path: path, ExcludePath: excludePath, FileUrl: fileUrl, Tar: tar}
+		glone.RunGlone(config, specificFiles)
 
-		if len(specificFiles) != 0 {
-			err := glone.DownloadSpecificFiles(fileUrl, specificFiles, config)
-			if err != nil {
-				log.Fatal(err)
-			}
-			os.Exit(0)
-		} else if tar {
-			err := glone.DownloadTarball(fileUrl, config)
-			if err != nil {
-				log.Fatal(err)
-			} else {
-				os.Exit(0)
-			}
-		}
-
-		err := glone.DealWithDir(config.GitHoster.GetContsFile(fileUrl, path), glone.GetGitDir, config)
-		if err != nil {
-			panic(err)
-		}
 	},
 }
 

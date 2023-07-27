@@ -3,9 +3,12 @@ package github
 import (
 	"encoding/json"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/brewingweasel/glone/pkg/gitservice"
 )
 
 type GithubFuncs struct{}
@@ -17,7 +20,6 @@ func (_ GithubFuncs) GetResponse(link string) ([]byte, error) {
 		return body, err
 	}
 
-	// TODO: adapt
 	token := os.Getenv("GLONE_GITHUB_TOKEN")
 	if token != "" {
 		req.Header.Set("Authorization", "token "+token)
@@ -69,4 +71,18 @@ func (_ GithubFuncs) GetBranch(url string) (string, error) {
 
 func (_ GithubFuncs) GetDownloadFromPath(url string, branch string, path string) string {
 	return "https://raw.githubusercontent.com" + strings.TrimPrefix(url, "https://github.com") + "/" + branch + "/" + path
+}
+
+func (_ GithubFuncs) GetGitDir(link string, _ string, _ string) (gitservice.DirStructure, error) {
+	var result gitservice.DirStructure
+
+	body, err := GithubFuncs{}.GetResponse(link)
+	if err != nil {
+		return result, err
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		log.Fatal("Error unmarshalling JSON. This could be due to hitting a rate limit. Create a github token and assign $GLONE_GITHUB_TOKEN to it in order to get more api calls")
+	}
+	return result, nil
 }

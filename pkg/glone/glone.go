@@ -3,7 +3,6 @@ package glone
 import (
 	"archive/tar"
 	"compress/gzip"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -14,6 +13,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/brewingweasel/glone/pkg/github"
+	"github.com/brewingweasel/glone/pkg/gitlab"
+	"github.com/brewingweasel/glone/pkg/gitservice"
 	"golang.org/x/exp/slices"
 )
 
@@ -23,15 +25,7 @@ type gitHostingService interface {
 	GetContsFile(normalLink string, path string) string
 	GetBranch(url string) (string, error)
 	GetDownloadFromPath(url string, branch string, path string) string
-}
-
-type DirStructure []FileValues
-
-type FileValues struct {
-	Path        string `json:"path"`
-	URL         string `json:"url"`
-	DownloadURL string `json:"download_url"`
-	Type        string `json:"type"`
+	GetGitDir(link string, origLink string, branch string) (gitservice.DirStructure, error)
 }
 
 type Config struct {
@@ -42,21 +36,39 @@ type Config struct {
 	Avoid        []string
 	Branch       string
 	Path         string
+	FileUrl      string
+	Tar          bool
 	GitHoster    gitHostingService
 }
 
-func GetGitDir(link string, gitHoster gitHostingService) (DirStructure, error) {
-	var result DirStructure
+func RunGlone(config Config, specificFiles []string) {
 
-	body, err := gitHoster.GetResponse(link)
+	if strings.Contains(config.FileUrl, "github.com") {
+		config.GitHoster = github.GithubFuncs{}
+	} else {
+		config.GitHoster = gitlab.GitlabFuncs{}
+	}
+
+	if len(specificFiles) != 0 {
+		err := DownloadSpecificFiles(config.FileUrl, specificFiles, config)
+		if err != nil {
+			log.Fatal(err)
+		}
+		os.Exit(0)
+	} else if config.Tar {
+		err := DownloadTarball(config.FileUrl, config)
+		if err != nil {
+			log.Fatal(err)
+		} else {
+			os.Exit(0)
+		}
+	}
+
+	err := DealWithDir(config.GitHoster.GetContsFile(config.FileUrl, config.Path), config)
 	if err != nil {
-		return result, err
+		panic(err)
 	}
 
-	if err := json.Unmarshal(body, &result); err != nil {
-		log.Fatal("Error unmarshalling JSON. This could be due to hitting a rate limit. Create a github token and assign $GLONE_GITHUB_TOKEN to it in order to get more api calls")
-	}
-	return result, nil
 }
 
 func parsePath(path string, config Config) string {
@@ -67,19 +79,18 @@ func parsePath(path string, config Config) string {
 	}
 }
 
-func DealWithDir(link string, getResult func(string, gitHostingService) (DirStructure, error), config Config) error {
+func DealWithDir(link string, config Config) error {
 	var wg sync.WaitGroup
 
-	// TODO: adapt
 	handleUrl := func(url string) string {
 		if config.Branch == "" {
 			return url
 		} else {
-			return strings.Split(url, "?ref=")[0] + "?ref=" + config.Branch
+			return config.GitHoster.HandleBranchUrl(url, config.Branch)
 		}
 	}
 
-	result, err := getResult(handleUrl(link), config.GitHoster)
+	result, err := config.GitHoster.GetGitDir(handleUrl(link), config.FileUrl, config.Branch)
 	if err != nil {
 		return err
 	}
@@ -91,23 +102,21 @@ func DealWithDir(link string, getResult func(string, gitHostingService) (DirStru
 		}
 
 		wg.Add(1)
-		if v.Type == "dir" {
-			go func(val FileValues) {
+		if v.Type == "dir" || v.Type == "tree" {
+			go func(val gitservice.FileValues) {
 				defer wg.Done()
 				if err := os.MkdirAll(path.Join(config.OutputPrefix, parsePath(val.Path, config)), os.ModePerm); err != nil {
 					panic(err)
 				}
-				// TODO: adapt
-				err := DealWithDir(handleUrl(val.URL), getResult, config)
+				err := DealWithDir(handleUrl(val.URL), config)
 				if err != nil {
 					panic(err)
 				}
 
 			}(v)
 		} else {
-			go func(val FileValues) {
+			go func(val gitservice.FileValues) {
 				defer wg.Done()
-				// TODO: adapt (or just make download url when converting)
 				err := DownloadIndividualFile(val.DownloadURL, path.Join(config.OutputPrefix, parsePath(val.Path, config)), config.Quiet)
 				if err != nil {
 					panic(err)
