@@ -86,3 +86,20 @@ func (_ GithubFuncs) GetGitDir(link string, _ string, _ string) (gitservice.DirS
 	}
 	return result, nil
 }
+
+func (_ GithubFuncs) GetTarball(url string, branch string) (string, error) {
+	var downloadUrl string
+
+	if branch == "" {
+		branch, err := GithubFuncs{}.GetBranch(url)
+		if err != nil {
+			return downloadUrl, err
+		}
+		// TODO: adapt
+		downloadUrl = url + "/tarball/" + branch
+	} else {
+		downloadUrl = url + "/tarball/" + branch
+	}
+	return downloadUrl, nil
+
+}

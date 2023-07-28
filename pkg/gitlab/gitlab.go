@@ -92,3 +92,10 @@ func (_ GitlabFuncs) GetGitDir(link string, origLink string, branch string) (git
 	}
 	return result, nil
 }
+
+func (_ GitlabFuncs) GetTarball(url string, branch string) (string, error) {
+	var downloadUrl string
+
+	downloadUrl = fmt.Sprint(getApiUrl(url), "/archive?ref=", branch)
+	return downloadUrl, nil
+}

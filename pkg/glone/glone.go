@@ -26,6 +26,7 @@ type gitHostingService interface {
 	GetBranch(url string) (string, error)
 	GetDownloadFromPath(url string, branch string, path string) string
 	GetGitDir(link string, origLink string, branch string) (gitservice.DirStructure, error)
+	GetTarball(link string, branch string) (string, error)
 }
 
 type Config struct {
@@ -215,17 +216,9 @@ func isPathShared(path1 string, path2 string) (bool, string) {
 
 func DownloadTarball(url string, config Config) error {
 
-	var downloadUrl string
-
-	if config.Branch == "" {
-		branch, err := config.GitHoster.GetBranch(url)
-		if err != nil {
-			return err
-		}
-		// TODO: adapt
-		downloadUrl = url + "/tarball/" + branch
-	} else {
-		downloadUrl = url + "/tarball/" + config.Branch
+	downloadUrl, err := config.GitHoster.GetTarball(url, config.Branch)
+	if err != nil {
+		return err
 	}
 
 	resp, err := http.Get(downloadUrl)
