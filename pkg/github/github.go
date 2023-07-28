@@ -1,7 +1,6 @@
 package github
 
 import (
-	"encoding/json"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -10,6 +9,9 @@ import (
 
 	"github.com/brewingweasel/glone/pkg/gitservice"
 )
+import jsoniter "github.com/json-iterator/go"
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 type GithubFuncs struct{}
 

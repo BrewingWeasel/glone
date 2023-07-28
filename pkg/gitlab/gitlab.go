@@ -1,7 +1,6 @@
 package gitlab
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -10,6 +9,9 @@ import (
 
 	"github.com/brewingweasel/glone/pkg/gitservice"
 )
+import jsoniter "github.com/json-iterator/go"
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 type GitlabFuncs struct{}
 
