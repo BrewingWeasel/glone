@@ -46,6 +46,13 @@ func RunGlone(config Config, specificFiles []string) {
 	if strings.Contains(config.FileUrl, "github.com") {
 		config.GitHoster = github.GithubFuncs{}
 	} else {
+		if config.Branch == "" {
+			var err error
+			config.Branch, err = gitlab.GitlabFuncs{}.GetBranch(config.FileUrl)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
 		config.GitHoster = gitlab.GitlabFuncs{}
 	}
 
