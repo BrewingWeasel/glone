@@ -35,6 +35,7 @@ type Config struct {
 	ExcludePath  bool
 	OutputPrefix string
 	Avoid        []string
+	MatchesFiles []string
 	Branch       string
 	Path         string
 	FileUrl      string
@@ -61,6 +62,12 @@ func RunGlone(config Config, specificFiles []string) {
 		err := DownloadSpecificFiles(config.FileUrl, specificFiles, config)
 		if err != nil {
 			log.Fatal(err)
+		}
+		if len(config.MatchesFiles) != 0 {
+			err := DealWithDir(config.GitHoster.GetContsFile(config.FileUrl, config.Path), config)
+			if err != nil {
+				panic(err)
+			}
 		}
 		os.Exit(0)
 	} else if config.Tar {
@@ -105,7 +112,7 @@ func DealWithDir(link string, config Config) error {
 
 	for _, v := range result {
 
-		if skipFile(v.Path, config) {
+		if skipFile(v.Path, config, v.Type) {
 			continue
 		}
 
@@ -144,7 +151,7 @@ func NormalizeLink(origLink string) string {
 	}
 }
 
-func skipFile(path string, config Config) bool {
+func skipFile(path string, config Config, fileType string) bool {
 	if slices.Contains(config.Avoid, path) {
 		return true
 	}
@@ -156,6 +163,16 @@ func skipFile(path string, config Config) bool {
 				fmt.Println("\033[31mRegex matched, skipping: ", path, "\033[m")
 			}
 			return true
+		}
+	}
+	if fileType == "blob" || fileType == "file" {
+		for _, testMatch := range config.MatchesFiles {
+			if matches, _ := regexp.Match(testMatch, byteStr); !matches {
+				if !config.Quiet {
+					fmt.Println("\033[33mRegex not matched, skipping: ", path, "\033[m")
+				}
+				return true
+			}
 		}
 	}
 	return false
@@ -273,7 +290,14 @@ func DownloadTarball(url string, config Config) error {
 			}
 		}
 
-		if skipFile(strings.TrimPrefix(name, config.OutputPrefix+"/"), config) {
+		var tarType string
+		if hdr.Typeflag == tar.TypeDir {
+			tarType = "dir"
+		} else {
+			tarType = "file"
+		}
+
+		if skipFile(strings.TrimPrefix(name, config.OutputPrefix+"/"), config, tarType) {
 			if !config.Quiet {
 				fmt.Println("skipped: ", name)
 			}
