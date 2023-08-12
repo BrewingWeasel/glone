@@ -17,6 +17,7 @@ var quiet bool
 var tar bool
 var branch string
 var excludePath bool
+var buildMode bool
 var rootCmd = &cobra.Command{
 	Use:   "glone <url (if using github, you can only include the user and the repository)> <path in repository> <output path>",
 	Short: "Glone is git clone without the git. It allows downloading specific directories as well as a list of files to not download.",
@@ -30,6 +31,10 @@ var rootCmd = &cobra.Command{
 		fileUrl := glone.NormalizeLink(args[0])
 		var path string
 		var outputDir string
+
+		if buildMode {
+			filteredVals = append(filteredVals, ".github", "LICENSE", "README", ".gitignore", "CONTRIBUTING", "CHANGELOG", "AUTHORS", ".editorconfig")
+		}
 
 		if len(args) > 1 {
 			path = args[1]
@@ -57,6 +62,7 @@ func init() {
 	rootCmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "Do not output any info while downloading")
 	rootCmd.Flags().BoolVarP(&tar, "tar", "t", false, "Download the tar.gz file and do processing while extracting instead of visiting each page")
 	rootCmd.Flags().BoolVar(&excludePath, "exclude-path", false, "exclude the specific path specified")
+	rootCmd.Flags().BoolVarP(&buildMode, "build", "B", false, "automatically exclude common files not needed for building such as .github")
 	rootCmd.Flags().StringVarP(&branch, "branch", "b", "", "Specific branch to download")
 }
 
