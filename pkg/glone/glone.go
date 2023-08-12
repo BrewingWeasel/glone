@@ -144,7 +144,7 @@ func DealWithDir(link string, config Config) error {
 }
 
 func NormalizeLink(origLink string) string {
-	if strings.HasPrefix(origLink, "https://github.com") || !strings.Contains(origLink, "github.com") {
+	if strings.HasPrefix(origLink, "https://github.com") || strings.Contains(origLink, "gitlab") {
 		return strings.Trim(origLink, "/")
 	} else {
 		return "https://github.com/" + strings.Trim(origLink, "/")
